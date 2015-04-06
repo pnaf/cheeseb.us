@@ -1,0 +1,82 @@
+@font-face {
+  font-family: 'Droid Sans';
+  src: local('Droid Sans'),
+       url(/EFpQQyG9GqCrobXxL-KRMQFhaRv2pGgT5Kf0An0s4MM.woff);
+}
+
+@font-face {
+  font-family: 'FreeMono';
+  src: local('FreeMono'),
+       url(/freefont-20120503/FreeMono.woff);
+}
+
+@font-face {
+  font-family: 'FreeSans';
+  src: local('FreeSans'),
+       url(/freefont-20120503/FreeSans.woff);
+}
+
+@font-face {
+  font-family: 'FreeSans Bold';
+  src: local('FreeSans Bold'),
+       url(/freefont-20120503/FreeSansBold.woff);
+}
+
+@font-face {
+  font-family: 'Roboto';
+  src: local('Roboto'),
+       url(/2UX7WLTfW3W8TclTUvlFyQ.woff);
+}
+
+a:link {
+   color: #000000;
+}
+
+a:visited {
+   color: #404040;
+}
+
+#advisory {
+   bottom: 0em;
+   font-family: 'Droid Sans', sans-serif;
+   font-size: 1.6em;
+   font-weight: 400;
+   position: absolute;
+   right: 1em;
+}
+
+body {
+   background: #ffffff;
+}
+
+#button {
+   background: #e0e0e0;
+   border-width: 0px;
+   font-family: 'FreeMono', monospace;
+   font-size: 19px;
+}
+
+#content {
+   text-align: left;
+   margin-left: 1em;
+   margin-top: 1em;
+}
+
+#content h2 {
+  font-family: 'FreeSans Bold', sans-serif;
+  font-size: 2em;
+  font-weight: 400;
+}
+
+#content h6 {
+  font-family: 'FreeSans', sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+}
+
+#play {
+   background: #e0e0e0;
+   border-width: 0px;
+   font-family: 'FreeMono', monospace;
+   font-size: 19px;
+}

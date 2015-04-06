@@ -1,0 +1,423 @@
+#!/bin/sh
+#    Cast, a wrapper for Icecast and Icecast source clients
+#    Copyright (C) 2015  Patrick Nafarrete
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+cast_help()
+{
+    echo 'Cast, a wrapper for Icecast and Icecast source clients'
+    echo "Usage: $0 SUBCOMMAND..."
+    echo -e '\nGeneral subcommands:'
+    if [[ $EMAIL -eq 0 ]]; then
+        echo '  help                             print extended help'
+        echo -e '\nRadio subcommands:'
+        echo '  start                            start streaming'
+        echo '  stop                             stop streaming'
+    elif [[ $EMAIL -eq 1 ]]; then
+        echo '  help                             print this help'
+        echo '  help SUBCOMMAND                  print help for the specified subcommand'
+        echo '  print                            print a list of printable settings'
+        echo '  spells                           print a list of subcommand aliases (spells)'
+        echo -e '\nRadio subcommands:'
+        echo '  clients                          print detected clients'
+        echo '  pause                            pause streaming'
+        echo '  spell                            print current track'
+        echo '  start                            start streaming'
+        echo '  stats                            print Icecast statistics in JSON format'
+        echo '  stop                             stop streaming'
+        echo '  update                           update playlist'
+        echo -e '\nMail bug reports, suggestions, and comments to <patrick@cheeseb.us>'
+    fi
+}
+
+if [[ $# -eq 0 ]]; then
+    EMAIL=0 # Hide email
+    cast_help
+    exit 0
+fi
+
+detect_clients()
+{
+    mpc stats > /dev/null 2>&1
+    if [[ $? -eq 0 ]]; then
+        MPC=1
+    else
+        MPC=0
+    fi
+}
+
+detect_hostname()
+{
+    if [[ -f /etc/icecast.xml ]]; then
+        ICECAST_HOSTNAME=`cat /etc/icecast.xml | grep -o '<hostname>.*</hostname>' | sed -r 's/(<hostname>|<\/hostname>)//g'`
+    fi
+}
+
+get_icecast_setting()
+{
+    case "$1" in
+        # Deny printing passwords
+        admin-password|admin-user|password|relay-password|relay-user|source-password)
+            exit 1
+            ;;
+        # Allow printing any other setting
+        *)
+            VALUE=`cat /etc/icecast.xml | grep -o "<$1>.*</$1>" | sed -r "s/(<$1>|<\/$1>)//g"`
+            ;;
+    esac
+}
+
+get_listeners()
+{
+    LISTENERS=`$0 stats $($0 print icecast hostname):8000 | grep -o '"listeners":[0-9]*,' | sed -r 's/("listeners":|,)//g'`
+}
+
+get_mpd_setting()
+{
+    case "$1" in
+        # Deny printing passwords
+        password)
+            exit 1
+            ;;
+        # Allow printing any other setting
+        *)
+            VALUE=`cat /etc/mpd.conf | grep ^$1 | sed "s/[\"']//g" | awk '{ print $2 }'`
+            ;;
+    esac
+}
+
+require_client()
+{
+    echo -n 'Detecting client... '
+    detect_clients
+    if [[ $MPC -eq 1 ]]; then
+        echo 'mpc'
+    elif [[ $MPC -eq 0 ]]; then
+        echo -e '\nError: no client detected'
+        exit 1
+    fi
+}
+
+require_listeners()
+{
+    echo -n 'Obtaining listener count... '
+    get_listeners
+    if [[ ! -z $LISTENERS ]]; then
+        echo "$LISTENERS"
+    else
+        echo 'none'
+    fi
+}
+
+case "$1" in
+    clients)
+        detect_clients
+        echo "Detected clients:"
+        if [[ $MPC -eq 1 ]]; then
+            echo '  * mpc'
+        fi
+        ;;
+    fire)
+        echo "Casting spell: $@"
+        "$0" play
+        ;;
+    help|-h|--help)
+        if [[ -z $2 ]]; then
+            EMAIL=1 # Display email
+            cast_help
+            exit 0
+        elif [[ $2 == clients ]]; then
+            echo "Usage: $0 clients"
+            echo 'Print a list of detected clients supported by Cast. Currently, the only'
+            echo 'supported client is mpc, which is itself a client for MPD.'
+        elif [[ $2 == fire ]]; then
+            echo "Usage: $0 fire"
+            echo 'Alias for the "start" subcommand. Use as a spell.'
+        elif [[ $2 == help ]]; then
+            echo "Usage: $0 help [SUBCOMMAND]"
+            echo 'Display help text. SUBCOMMAND is optional. Without any SUBCOMMAND,'
+            echo 'display help for Cast. Otherwise, display help for SUBCOMMAND.'
+        elif [[ $2 == ice ]]; then
+            echo "Usage: $0 ice"
+            echo 'Alias for the "stop" subcommand. Use as a spell.'
+        elif [[ $2 == pause ]]; then
+            echo "Usage: $0 pause"
+            echo 'Pause streaming music. Cast searches for installed Icecast source'
+            echo 'clients and pauses the stream using the appropriate client.'
+        elif [[ $2 == play ]]; then
+            echo "Usage: $0 play"
+            echo 'Alias for the "start" subcommand.'
+        elif [[ $2 == print ]]; then
+            echo "Usage: $0 print [PROGRAM] [SETTING]"
+            echo "Print the value of a program's setting. Both arguments are required."
+            echo -e '\nSupported programs:'
+            echo '  * icecast'
+            echo '  * mpd'
+            echo -e '\nicecast settings:'
+            echo '  * accesslog'
+            echo '  * admin'
+            echo '  * adminroot'
+            echo '  * basedir'
+            echo '  * burst-on-connect'
+            echo '  * chroot'
+            echo '  * client-timeout'
+            echo '  * clients'
+            echo '  * errorlog'
+            echo '  * fileserve'
+            echo '  * group'
+            echo '  * header-timeout'
+            echo '  * hostname'
+            echo '  * location'
+            echo '  * logdir'
+            echo '  * loglevel'
+            echo '  * pidfile'
+            echo '  * playlistlog'
+            echo '  * queue-size'
+            echo '  * source-timeout'
+            echo '  * sources'
+            echo '  * user'
+            echo '  * webroot'
+            echo '  * yp-url'
+            echo '  * yp-url-timeout'
+            echo -e '\nmpd settings:'
+            echo '  * db_file'
+            echo '  * music_directory'
+            exit 0
+        elif [[ $2 == spell ]]; then
+            echo "Usage: $0 spell [SUBCOMMAND]"
+            echo 'SUBCOMMAND is optional. Without any SUBCOMMAND, `cast spell` will just'
+            echo 'print the currently playing track. Otherwise, `cast spell SUBCOMMAND`'
+            echo 'can also serve as an alias for any `cast SUBCOMMAND` (e.g. `cast spell'
+            echo 'help` is functionally equivalent to `cast help`).'
+            echo -e "\nWizards don't let wizards wander alone without spells."
+            exit 0
+        elif [[ $2 == spells ]]; then
+            echo "Usage: $0 spells"
+            echo 'Display a list of spells. Spells are functionally equivalent to aliases.'
+        elif [[ $2 == start ]]; then
+            echo "Usage: $0 start"
+            echo 'Start streaming music. Cast searches for installed Icecast source'
+            echo 'clients and activates the stream using the appropriate client.'
+        elif [[ $2 == stats ]]; then
+            echo "Usage: $0 stats"
+            echo 'Print run-time statistics for Icecast in JSON format.'
+        elif [[ $2 == stop ]]; then
+            echo "Usage: $0 stop [TIME]"
+            echo 'Stop streaming music. TIME is optional. Cast searches for installed'
+            echo 'Icecast source clients and deactivates the stream using the appropriate'
+            echo 'client. Without TIME, Cast will immediately stop the stream unless there'
+            echo 'are any current listeners. Otherwise, Cast will let TIME be the amount'
+            echo 'of seconds to wait until forcibly stopping the stream. For TIME, "now"'
+            echo 'can be used to trigger an immediate stop regardless of listener count.'
+        elif [[ $2 == update ]]; then
+            echo "Usage: $0 update"
+            echo 'Update the playlist. Check for updated files within the music directory,'
+            echo 'and print statistical differences if the music database was updated.'
+        else
+            echo "Error: not a valid subcommand: $2"
+            "$0" help
+            exit 1
+        fi
+        ;;
+    ice)
+        echo "Casting spell: $@"
+        "$0" stop
+        ;;
+    pause)
+        require_client
+        if [[ $MPC -eq 1 ]]; then
+            echo -n 'Info: pausing... '
+            mpc pause --quiet
+            MPC_EXIT_STATUS=$?
+            echo 'done'
+            exit "$?"
+        else
+            echo 'Info: unknown error'
+            exit 1
+        fi
+        ;;
+    play)
+        "$0" start
+        ;;
+    print)
+        if [[ -z $2 && -z $3 ]]; then
+            "$0" help print
+            exit 0
+        else
+            "get_$2_setting" "$3"
+            if [[ -z $VALUE ]]; then
+                echo 'Error: setting does not exist or value is blank'
+                exit 1
+            else
+                echo "$VALUE"
+                exit 0
+            fi
+        fi
+        ;;
+    spell)
+        if [[ -z $2 ]]; then
+            mpc | grep ' - ' || echo '(offline)'
+            exit "$?"
+        else
+            shift
+            "$0" "$@"
+        fi
+        ;;
+    spells)
+        echo 'Aliases/spells:'
+        echo '  fire                              alias for `play`'
+        echo '  ice                               alias for `stop`'
+        echo -e "\n\`$0 spell SUBCOMMAND\` also serves as an alias for \`$0 SUBCOMMAND\`"
+        echo "(e.g. \`$0 spell help\` is functionally equivalent to \`$0 help\`)."
+        exit 0
+        ;;
+    start)
+        require_client
+        if [[ $MPC -eq 1 ]]; then
+            if [[ $(mpc | grep '\[playing\]' | wc -l) -eq 1 ]]; then
+                echo 'Info: already playing'
+                exit 0
+            else
+                echo -n 'Info: playing... '
+                mpc play --quiet
+                MPC_EXIT_STATUS=$?
+                echo 'done'
+                mpc
+                exit "$MPC_EXIT_STATUS"
+            fi
+        else
+            echo 'Error: unknown error'
+            exit 1
+        fi
+        ;;
+    stats)
+        if [[ -z $2 ]]; then
+            echo -n 'Enter hostname:port of Icecast instance: '
+            read
+            "$0" "$@" "$REPLY"
+            exit "$?"
+        else
+            curl -is "http://$2/status-json.xsl" > /tmp/status-json.xsl
+            CURL_EXIT_STATUS=$?
+            RESPONSE=`cat /tmp/status-json.xsl | head -n 1`
+            OK=`echo $RESPONSE | grep 'HTTP/1.0 200 OK' | wc -l`
+            if [[ $OK -eq 1 ]]; then
+                cat /tmp/status-json.xsl
+                echo
+                rm /tmp/status-json.xsl
+                exit 0
+            elif [[ -z $RESPONSE ]]; then
+                echo -n 'Error: '
+                if [[ $CURL_EXIT_STATUS -ne 0 ]]; then
+                    echo -n 'curl failed: '
+                fi
+                echo 'no server response'
+                rm /tmp/status-json.xsl
+                exit 1
+            else
+                echo -n 'Error: '
+                if [[ $CURL_EXIT_STATUS -ne 0 ]]; then
+                    echo -n 'curl failed: '
+                fi
+                echo "$RESPONSE"
+                rm /tmp/status-json.xsl
+                exit 1
+            fi
+        fi
+        ;;
+    stop)
+        require_client
+        get_listeners
+        if [[ -z $LISTENERS ]]; then
+            echo 'Info: already stopped'
+            exit 0
+        elif [[ $2 -gt 0 ]]; then
+            TIMER=$2
+            while [[ $TIMER -gt 0 ]]; do
+                printf "%s\r" "Stopping in $TIMER seconds ($LISTENERS listeners)... "
+                TIMER=`expr $TIMER - 1`
+                sleep 1
+            done
+        elif [[ $LISTENERS -eq 0 ]]; then
+            echo -n 'Info: stopping... '
+            if [[ $MPC -eq 1 ]]; then
+                mpc stop --quiet
+                MPC_EXIT_STATUS=$?
+                echo 'done'
+                exit "$MPC_EXIT_STATUS"
+            else
+                echo 'Error: unknown error'
+                exit 1
+            fi
+        elif [[ $LISTENERS -gt 0 ]]; then
+            if [[ $2 == now ]]; then
+                echo "Info: listener count is $LISTENERS"
+                echo -n 'Info: forcing stop... '
+                if [[ $MPC -eq 1 ]]; then
+                    mpc stop --quiet
+                    MPC_EXIT_STATUS=$?
+                    echo 'done'
+                    exit "$MPC_EXIT_STATUS"
+                else
+                    echo 'Error: unknown error'
+                    exit 1
+                fi
+            else
+                echo "Info: listener count is $LISTENERS"
+                echo 'Info: stop canceled'
+                exit 1
+            fi
+        elif [[ $LISTENERS -lt 0 ]]; then
+            echo "Error: invalid listener count: $LISTENERS"
+            exit 1
+        fi
+	;;
+    update)
+        require_client
+        echo -n 'Updating playlist... '
+        if [[ $MPC -eq 1 ]]; then
+            OLD_DB_UPDATED=`mpc stats | grep 'DB Updated:'`
+            OLD_ARTISTS=`mpc stats | grep 'Artists:' | awk '{ print $2 }'`
+            OLD_ALBUMS=`mpc stats | grep 'Albums:' | awk '{ print $2 }'`
+            OLD_SONGS=`mpc stats | grep 'Songs:' | awk '{ print $2 }'`
+            mpc update --wait --quiet
+            if [[ $? -eq 0 ]]; then
+                NEW_DB_UPDATED=`mpc stats | grep 'DB Updated:'`
+                if [[ $OLD_DB_UPDATED != $NEW_DB_UPDATED ]]; then
+                    echo 'success'
+                    NEW_ARTISTS=`mpc stats | grep 'Artists:' | awk '{ print $2 }'`
+                    NEW_ALBUMS=`mpc stats | grep 'Albums:' | awk '{ print $2 }'`
+                    NEW_SONGS=`mpc stats | grep 'Songs:' | awk '{ print $2 }'`
+                    echo "Artists: $OLD_ARTISTS -> $NEW_ARTISTS"
+                    echo "Albums: $OLD_ALBUMS -> $NEW_ALBUMS"
+                    echo "Songs: $OLD_SONGS -> $NEW_SONGS"
+                    exit 0
+                else
+                    echo 'no updates'
+                    exit 0
+                fi
+            else
+                EXIT_STATUS=$?
+                echo 'error'
+                exit "$EXIT_STATUS"
+            fi
+        fi
+        ;;
+    *)
+        echo -e "Unknown option: $@\n"
+        "$0" help
+        exit 1
+        ;;
+esac

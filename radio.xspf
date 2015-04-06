@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE playlist
+[
+<!ELEMENT playlist (title,creator,trackList)>
+<!ATTLIST playlist
+xmlns   CDATA   #REQUIRED
+version CDATA   #REQUIRED>
+<!ELEMENT title (#PCDATA)>
+<!ELEMENT creator (#PCDATA)>
+<!ELEMENT trackList (track)>
+<!ELEMENT track (location)>
+<!ELEMENT location (#PCDATA)>
+]>
+
+<playlist xmlns="http://xspf.org/ns/0/" version="1">
+  <title/>
+  <creator/>
+  <trackList>
+    <track>
+      <location>http://cheeseb.us:8000/radio.ogg</location>
+    </track>
+  </trackList>
+</playlist>
