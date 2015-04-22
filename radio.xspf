@@ -18,7 +18,7 @@ version CDATA   #REQUIRED>
   <creator/>
   <trackList>
     <track>
-      <location>http://cheeseb.us:8000/radio.ogg</location>
+      <location>https://cheeseb.us:8443/radio.ogg</location>
     </track>
   </trackList>
 </playlist>
