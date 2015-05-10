@@ -268,7 +268,7 @@ case "$1" in
         ;;
     spell)
         if [[ -z $2 ]]; then
-            mpc | grep ' - ' || echo '(offline)'
+            mpc | grep ' - ' | head -n 1 || echo '(offline)'
             exit "$?"
         else
             shift
