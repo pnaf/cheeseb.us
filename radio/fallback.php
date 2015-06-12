@@ -17,7 +17,7 @@
         </h6>
         <h6><a href="about/">about</a> &bull;
         <?php
-        echo shell_exec('mpc stats | sed -n 7p | tr [:upper:] [:lower:]');
+        echo shell_exec('./cast timestamp | tr [:upper:] [:lower:]');
         ?>
         </h6>
     </div>
