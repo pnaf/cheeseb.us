@@ -268,8 +268,13 @@ case "$1" in
         ;;
     spell)
         if [[ -z $2 ]]; then
-            mpc | grep ' - ' | head -n 1 || echo '(offline)'
-            exit "$?"
+            if [[ $(mpc | wc -l) -gt 1 ]]; then
+                mpc | grep ' - ' | head -n 1 || echo '(offline)'
+                exit "$?"
+            else
+                echo '(n/a)'
+                exit 1
+            fi
         else
             shift
             "$0" "$@"
