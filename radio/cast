@@ -37,6 +37,7 @@ cast_help()
         echo '  start                            start streaming'
         echo '  stats                            print Icecast statistics in JSON format'
         echo '  stop                             stop streaming'
+        echo '  timestamp                        print timestamp of last database update'
         echo '  update                           update playlist'
         echo -e '\nMail bug reports, suggestions, and comments to <patrick@cheeseb.us>'
     fi
@@ -389,6 +390,13 @@ case "$1" in
             exit 1
         fi
 	;;
+    timestamp)
+        if [[ $(mpc | wc -l) -gt 0 ]]; then
+            echo `mpc stats | sed -n 7p`
+        else
+            echo 'DB Updated: (n/a)'
+        fi
+        ;;
     update)
         require_client
         echo -n 'Updating playlist... '
