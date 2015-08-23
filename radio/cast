@@ -1,436 +1,324 @@
-#!/bin/sh
-#    Cast, a wrapper for Icecast and Icecast source clients
-#    Copyright (C) 2015  Patrick Nafarrete
+#!/usr/bin/env python3
 #
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#     Cast, a mindful wrapper for MPC and MPD as an Icecast source client.
+#     Copyright (C) 2015  Patrick Nafarrete
 #
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
 #
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+import argparse
+import json
+import urllib.request
+import sys
+import subprocess
+prog = 'Cast'
+parser = argparse.ArgumentParser(prog=prog.lower(), description='Cast, a\
+                                 mindful wrapper for MPC and MPD as an Icecast\
+                                 source client.', epilog='Mail bug reports and\
+                                 suggestions to <patrick@cheeseb.us>.')
+parser.add_argument('-d', '--debug', action='store_true', help='print lots of\
+                    debugging information')
+subparsers = parser.add_subparsers(metavar='{fire,ice,lightning}')
+parser_clear = subparsers.add_parser('clear', description='Empty the\
+                                     playlist. Cast will prompt for\
+                                     continuation if listeners are present.',
+                                     help='empty playlist')
+parser_crossfade = subparsers.add_parser('crossfade', description='Get and set\
+                                         the current amount of crossfading\
+                                         between songs.', help='get and set\
+                                         amount of crossfading between songs')
+parser_crossfade.add_argument('seconds', nargs='?', type=int, help='set\
+                              current amount of crossfading between songs')
+parser_current = subparsers.add_parser('current', aliases=['spell'],
+                                       description='Print the currently\
+                                       playing song.', help='print currently\
+                                       playing song')
+parser_next = subparsers.add_parser('next', description='Start playing the\
+                                    next song. Cast will prompt for\
+                                    continuation is listeners are present.',
+                                    help='start playing next song')
+parser_pause = subparsers.add_parser('pause', description='Pause the stream.\
+                                     Cast will prompt for continuation if\
+                                     listeners are present.', help='pause\
+                                     stream')
+parser_play = subparsers.add_parser('play', aliases=['fire'],
+                                    description='Play the stream.', help='play\
+                                    stream')
+parser_prev = subparsers.add_parser('prev', aliases=['previous'],
+                                    description='Start playing the previous\
+                                    song. Cast will prompt for continuation if\
+                                    listeners are present.')
+parser_purge = subparsers.add_parser('purge', aliases=['lightning'],
+                                     description='Stop the stream and play a\
+                                     newly-shuffled playlist. Cast will prompt\
+                                     for continuation if listeners are\
+                                     present.', help='stop stream and play a\
+                                     newly-shuffled playlist')
+parser_stats = subparsers.add_parser('stats', help='display statistics about\
+                                     MPD')
+parser_status = subparsers.add_parser('status', help='display MPD status')
+parser_stop = subparsers.add_parser('stop', aliases=['ice'], description='Stop\
+                                    the stream. Cast will prompt for\
+                                    continuation if listeners are present.',
+                                    help='stop stream')
+parser_timestamp = subparsers.add_parser('timestamp', help='print timestamp of\
+                                         last database update')
+parser_update = subparsers.add_parser('update', help='update MPD database')
+parser.parse_args()
+if '-d' in sys.argv or '--debug' in sys.argv:
+    print(sys.argv)
+if len(sys.argv) == 1:
+    sys.exit("Try `{} --help' for more options.".format(prog.lower()))
 
-cast_help()
-{
-    echo 'Cast, a wrapper for Icecast and Icecast source clients'
-    echo "Usage: $0 SUBCOMMAND..."
-    echo -e '\nGeneral subcommands:'
-    if [[ $EMAIL -eq 0 ]]; then
-        echo '  help                             print extended help'
-        echo -e '\nRadio subcommands:'
-        echo '  start                            start streaming'
-        echo '  stop                             stop streaming'
-    elif [[ $EMAIL -eq 1 ]]; then
-        echo '  help                             print this help'
-        echo '  help SUBCOMMAND                  print help for the specified subcommand'
-        echo '  print                            print a list of printable settings'
-        echo '  spells                           print a list of subcommand aliases (spells)'
-        echo -e '\nRadio subcommands:'
-        echo '  clients                          print detected clients'
-        echo '  pause                            pause streaming'
-        echo '  spell                            print current track'
-        echo '  start                            start streaming'
-        echo '  stats                            print Icecast statistics in JSON format'
-        echo '  stop                             stop streaming'
-        echo '  timestamp                        print timestamp of last database update'
-        echo '  update                           update playlist'
-        echo -e '\nMail bug reports, suggestions, and comments to <patrick@cheeseb.us>'
-    fi
-}
 
-if [[ $# -eq 0 ]]; then
-    EMAIL=0 # Hide email
-    cast_help
-    exit 0
-fi
+def cast(spell):
+    if '-d' in sys.argv or '--debug' in sys.argv:
+        print('Casting spell:', spell)
+    if spell == 'fire':
+        sys.argv[sys.argv.index(spell)] = "play"
+    elif spell == 'ice':
+        sys.argv[sys.argv.index(spell)] = "stop"
+    elif spell == 'lightning':
+        sys.argv[sys.argv.index(spell)] = "purge"
 
-detect_clients()
-{
-    mpc stats > /dev/null 2>&1
-    if [[ $? -eq 0 ]]; then
-        MPC=1
-    else
-        MPC=0
-    fi
-}
 
-detect_hostname()
-{
-    if [[ -f /etc/icecast.xml ]]; then
-        ICECAST_HOSTNAME=`cat /etc/icecast.xml | grep -o '<hostname>.*</hostname>' | sed -r 's/(<hostname>|<\/hostname>)//g'`
-    fi
-}
+def get_icestats():
+    status_json = "http://127.0.0.1:8000/status-json.xsl"
+    if urllib.request.urlopen(status_json).getcode() == 200:
+        global icestats
+        with urllib.request.urlopen(status_json) as response:
+            icestats = response.read()
+        icestats = icestats.decode('utf-8')
+        icestats = json.loads(icestats)
+    else:
+        sys.exit("Error processing icestats! Is Icecast running on port 8000?")
 
-get_icecast_setting()
-{
-    case "$1" in
-        # Deny printing passwords
-        admin-password|admin-user|password|relay-password|relay-user|source-password)
-            exit 1
-            ;;
-        # Allow printing any other setting
-        *)
-            VALUE=`cat /etc/icecast.xml | grep -o "<$1>.*</$1>" | sed -r "s/(<$1>|<\/$1>)//g"`
-            ;;
-    esac
-}
 
-get_listeners()
-{
-    LISTENERS=`$0 stats $($0 print icecast hostname):8000 | grep -o '"listeners":[0-9]*,' | sed -r 's/("listeners":|,)//g'`
-}
+def prompt(command):
+    reply = input("Are you sure you want to continue (yes/no)? ")
+    while reply.lower() != 'yes' and reply.lower() != 'no':
+        reply = input("Please type 'yes' or 'no': ")
+    else:
+        if reply.lower() == 'yes':
+            mpc = subprocess.call(command, shell=True)
+            exit(mpc)
+        else:
+            sys.exit("Stop failed!")
 
-get_mpd_setting()
-{
-    case "$1" in
-        # Deny printing passwords
-        password)
-            exit 1
-            ;;
-        # Allow printing any other setting
-        *)
-            VALUE=`cat /etc/mpd.conf | grep ^$1 | sed "s/[\"']//g" | awk '{ print $2 }'`
-            ;;
-    esac
-}
 
-require_client()
-{
-    echo -n 'Detecting client... '
-    detect_clients
-    if [[ $MPC -eq 1 ]]; then
-        echo 'mpc'
-    elif [[ $MPC -eq 0 ]]; then
-        echo -e '\nError: no client detected'
-        exit 1
-    fi
-}
-
-require_listeners()
-{
-    echo -n 'Obtaining listener count... '
-    get_listeners
-    if [[ ! -z $LISTENERS ]]; then
-        echo "$LISTENERS"
-    else
-        echo 'none'
-    fi
-}
-
-case "$1" in
-    clients)
-        detect_clients
-        echo "Detected clients:"
-        if [[ $MPC -eq 1 ]]; then
-            echo '  * mpc'
-        fi
-        ;;
-    fire)
-        echo "Casting spell: $@"
-        "$0" play
-        ;;
-    help|-h|--help)
-        if [[ -z $2 ]]; then
-            EMAIL=1 # Display email
-            cast_help
-            exit 0
-        elif [[ $2 == clients ]]; then
-            echo "Usage: $0 clients"
-            echo 'Print a list of detected clients supported by Cast. Currently, the only'
-            echo 'supported client is mpc, which is itself a client for MPD.'
-        elif [[ $2 == fire ]]; then
-            echo "Usage: $0 fire"
-            echo 'Alias for the "start" subcommand. Use as a spell.'
-        elif [[ $2 == help ]]; then
-            echo "Usage: $0 help [SUBCOMMAND]"
-            echo 'Display help text. SUBCOMMAND is optional. Without any SUBCOMMAND,'
-            echo 'display help for Cast. Otherwise, display help for SUBCOMMAND.'
-        elif [[ $2 == ice ]]; then
-            echo "Usage: $0 ice"
-            echo 'Alias for the "stop" subcommand. Use as a spell.'
-        elif [[ $2 == pause ]]; then
-            echo "Usage: $0 pause"
-            echo 'Pause streaming music. Cast searches for installed Icecast source'
-            echo 'clients and pauses the stream using the appropriate client.'
-        elif [[ $2 == play ]]; then
-            echo "Usage: $0 play"
-            echo 'Alias for the "start" subcommand.'
-        elif [[ $2 == print ]]; then
-            echo "Usage: $0 print [PROGRAM] [SETTING]"
-            echo "Print the value of a program's setting. Both arguments are required."
-            echo -e '\nSupported programs:'
-            echo '  * icecast'
-            echo '  * mpd'
-            echo -e '\nicecast settings:'
-            echo '  * accesslog'
-            echo '  * admin'
-            echo '  * adminroot'
-            echo '  * basedir'
-            echo '  * burst-on-connect'
-            echo '  * chroot'
-            echo '  * client-timeout'
-            echo '  * clients'
-            echo '  * errorlog'
-            echo '  * fileserve'
-            echo '  * group'
-            echo '  * header-timeout'
-            echo '  * hostname'
-            echo '  * location'
-            echo '  * logdir'
-            echo '  * loglevel'
-            echo '  * pidfile'
-            echo '  * playlistlog'
-            echo '  * queue-size'
-            echo '  * source-timeout'
-            echo '  * sources'
-            echo '  * user'
-            echo '  * webroot'
-            echo '  * yp-url'
-            echo '  * yp-url-timeout'
-            echo -e '\nmpd settings:'
-            echo '  * db_file'
-            echo '  * music_directory'
-            exit 0
-        elif [[ $2 == spell ]]; then
-            echo "Usage: $0 spell [SUBCOMMAND]"
-            echo 'SUBCOMMAND is optional. Without any SUBCOMMAND, `cast spell` will just'
-            echo 'print the currently playing track. Otherwise, `cast spell SUBCOMMAND`'
-            echo 'can also serve as an alias for any `cast SUBCOMMAND` (e.g. `cast spell'
-            echo 'help` is functionally equivalent to `cast help`).'
-            echo -e "\nWizards don't let wizards wander alone without spells."
-            exit 0
-        elif [[ $2 == spells ]]; then
-            echo "Usage: $0 spells"
-            echo 'Display a list of spells. Spells are functionally equivalent to aliases.'
-        elif [[ $2 == start ]]; then
-            echo "Usage: $0 start"
-            echo 'Start streaming music. Cast searches for installed Icecast source'
-            echo 'clients and activates the stream using the appropriate client.'
-        elif [[ $2 == stats ]]; then
-            echo "Usage: $0 stats"
-            echo 'Print run-time statistics for Icecast in JSON format.'
-        elif [[ $2 == stop ]]; then
-            echo "Usage: $0 stop [TIME]"
-            echo 'Stop streaming music. TIME is optional. Cast searches for installed'
-            echo 'Icecast source clients and deactivates the stream using the appropriate'
-            echo 'client. Without TIME, Cast will immediately stop the stream unless there'
-            echo 'are any current listeners. Otherwise, Cast will let TIME be the amount'
-            echo 'of seconds to wait until forcibly stopping the stream. For TIME, "now"'
-            echo 'can be used to trigger an immediate stop regardless of listener count.'
-        elif [[ $2 == update ]]; then
-            echo "Usage: $0 update"
-            echo 'Update the playlist. Check for updated files within the music directory,'
-            echo 'and print statistical differences if the music database was updated.'
-        else
-            echo "Error: not a valid subcommand: $2"
-            "$0" help
-            exit 1
-        fi
-        ;;
-    ice)
-        echo "Casting spell: $@"
-        "$0" stop
-        ;;
-    pause)
-        require_client
-        if [[ $MPC -eq 1 ]]; then
-            echo -n 'Info: pausing... '
-            mpc pause --quiet
-            MPC_EXIT_STATUS=$?
-            echo 'done'
-            exit "$?"
-        else
-            echo 'Info: unknown error'
-            exit 1
-        fi
-        ;;
-    play)
-        "$0" start
-        ;;
-    print)
-        if [[ -z $2 && -z $3 ]]; then
-            "$0" help print
-            exit 0
-        else
-            "get_$2_setting" "$3"
-            if [[ -z $VALUE ]]; then
-                echo 'Error: setting does not exist or value is blank'
-                exit 1
-            else
-                echo "$VALUE"
-                exit 0
-            fi
-        fi
-        ;;
-    spell)
-        if [[ -z $2 ]]; then
-            if [[ $(mpc | wc -l) -gt 1 ]]; then
-                mpc | grep ' - ' | head -n 1 || echo '(offline)'
-                exit "$?"
-            else
-                echo '(n/a)'
-                exit 1
-            fi
-        else
-            shift
-            "$0" "$@"
-        fi
-        ;;
-    spells)
-        echo 'Aliases/spells:'
-        echo '  fire                              alias for `play`'
-        echo '  ice                               alias for `stop`'
-        echo -e "\n\`$0 spell SUBCOMMAND\` also serves as an alias for \`$0 SUBCOMMAND\`"
-        echo "(e.g. \`$0 spell help\` is functionally equivalent to \`$0 help\`)."
-        exit 0
-        ;;
-    start)
-        require_client
-        if [[ $MPC -eq 1 ]]; then
-            if [[ $(mpc | grep '\[playing\]' | wc -l) -eq 1 ]]; then
-                echo 'Info: already playing'
-                exit 0
-            else
-                echo -n 'Info: playing... '
-                mpc play --quiet
-                MPC_EXIT_STATUS=$?
-                echo 'done'
-                mpc
-                exit "$MPC_EXIT_STATUS"
-            fi
-        else
-            echo 'Error: unknown error'
-            exit 1
-        fi
-        ;;
-    stats)
-        if [[ -z $2 ]]; then
-            echo -n 'Enter hostname:port of Icecast instance: '
-            read
-            "$0" "$@" "$REPLY"
-            exit "$?"
-        else
-            curl -is "http://$2/status-json.xsl" > /tmp/status-json.xsl
-            CURL_EXIT_STATUS=$?
-            RESPONSE=`cat /tmp/status-json.xsl | head -n 1`
-            OK=`echo $RESPONSE | grep 'HTTP/1.0 200 OK' | wc -l`
-            if [[ $OK -eq 1 ]]; then
-                cat /tmp/status-json.xsl
-                echo
-                rm /tmp/status-json.xsl
-                exit 0
-            elif [[ -z $RESPONSE ]]; then
-                echo -n 'Error: '
-                if [[ $CURL_EXIT_STATUS -ne 0 ]]; then
-                    echo -n 'curl failed: '
-                fi
-                echo 'no server response'
-                rm /tmp/status-json.xsl
-                exit 1
-            else
-                echo -n 'Error: '
-                if [[ $CURL_EXIT_STATUS -ne 0 ]]; then
-                    echo -n 'curl failed: '
-                fi
-                echo "$RESPONSE"
-                rm /tmp/status-json.xsl
-                exit 1
-            fi
-        fi
-        ;;
-    stop)
-        require_client
-        get_listeners
-        if [[ -z $LISTENERS ]]; then
-            echo 'Info: already stopped'
-            exit 0
-        elif [[ $2 -gt 0 ]]; then
-            TIMER=$2
-            while [[ $TIMER -gt 0 ]]; do
-                printf "%s\r" "Stopping in $TIMER seconds ($LISTENERS listeners)... "
-                TIMER=`expr $TIMER - 1`
-                sleep 1
-            done
-        elif [[ $LISTENERS -eq 0 ]]; then
-            echo -n 'Info: stopping... '
-            if [[ $MPC -eq 1 ]]; then
-                mpc stop --quiet
-                MPC_EXIT_STATUS=$?
-                echo 'done'
-                exit "$MPC_EXIT_STATUS"
-            else
-                echo 'Error: unknown error'
-                exit 1
-            fi
-        elif [[ $LISTENERS -gt 0 ]]; then
-            if [[ $2 == now ]]; then
-                echo "Info: listener count is $LISTENERS"
-                echo -n 'Info: forcing stop... '
-                if [[ $MPC -eq 1 ]]; then
-                    mpc stop --quiet
-                    MPC_EXIT_STATUS=$?
-                    echo 'done'
-                    exit "$MPC_EXIT_STATUS"
-                else
-                    echo 'Error: unknown error'
-                    exit 1
-                fi
-            else
-                echo "Info: listener count is $LISTENERS"
-                echo 'Info: stop canceled'
-                exit 1
-            fi
-        elif [[ $LISTENERS -lt 0 ]]; then
-            echo "Error: invalid listener count: $LISTENERS"
-            exit 1
-        fi
-	;;
-    timestamp)
-        if [[ $(mpc | wc -l) -gt 0 ]]; then
-            echo `mpc stats | sed -n 7p`
-        else
-            echo 'DB Updated: (n/a)'
-        fi
-        ;;
-    update)
-        require_client
-        echo -n 'Updating playlist... '
-        if [[ $MPC -eq 1 ]]; then
-            OLD_DB_UPDATED=`mpc stats | grep 'DB Updated:'`
-            OLD_ARTISTS=`mpc stats | grep 'Artists:' | awk '{ print $2 }'`
-            OLD_ALBUMS=`mpc stats | grep 'Albums:' | awk '{ print $2 }'`
-            OLD_SONGS=`mpc stats | grep 'Songs:' | awk '{ print $2 }'`
-            mpc update --wait --quiet
-            if [[ $? -eq 0 ]]; then
-                NEW_DB_UPDATED=`mpc stats | grep 'DB Updated:'`
-                if [[ $OLD_DB_UPDATED != $NEW_DB_UPDATED ]]; then
-                    echo 'success'
-                    NEW_ARTISTS=`mpc stats | grep 'Artists:' | awk '{ print $2 }'`
-                    NEW_ALBUMS=`mpc stats | grep 'Albums:' | awk '{ print $2 }'`
-                    NEW_SONGS=`mpc stats | grep 'Songs:' | awk '{ print $2 }'`
-                    echo "Artists: $OLD_ARTISTS -> $NEW_ARTISTS"
-                    echo "Albums: $OLD_ALBUMS -> $NEW_ALBUMS"
-                    echo "Songs: $OLD_SONGS -> $NEW_SONGS"
-                    exit 0
-                else
-                    echo 'no updates'
-                    exit 0
-                fi
-            else
-                EXIT_STATUS=$?
-                echo 'error'
-                exit "$EXIT_STATUS"
-            fi
-        fi
-        ;;
-    *)
-        echo -e "Unknown option: $@\n"
-        "$0" help
-        exit 1
-        ;;
-esac
+def require_mpc():
+    try:
+        status = subprocess.check_output("mpc status", shell=True)
+    except subprocess.CalledProcessError:
+        sys.exit(127)
+if 'fire' in sys.argv:
+    cast("fire")  # (∩◕‿◕)⊃━☆ﾟ.*･｡ﾟ
+elif 'ice' in sys.argv:
+    cast("ice")  # (∩◕‿◕)⊃━☆ﾟ.*･｡ﾟ
+elif 'lightning' in sys.argv:
+    cast("lightning")  # (∩◕‿◕)⊃━☆ﾟ.*･｡ﾟ
+if 'clear' in sys.argv:
+    require_mpc()
+    get_icestats()
+    command = "mpc clear"
+    if icestats['icestats']['source']['listeners'] > 0:
+        print('Listener count is', icestats['icestats']['source']['listeners'])
+        prompt(command)
+    elif icestats['icestats']['source']['listeners'] == 0:
+        subprocess.check_call(command, shell=True)
+    else:
+        sys.exit("Error processing icestats!")
+if 'crossfade' in sys.argv:
+    seconds = None
+    for argument in sys.argv:
+        try:
+            seconds = int(argument)
+        except ValueError:
+            pass
+    if seconds is None:
+        try:
+            subprocess.check_call("mpc crossfade", shell=True)
+        except subprocess.CalledProcessError:
+            sys.exit(127)
+    elif type(seconds) == int:
+        try:
+            subprocess.check_call("mpc crossfade {}".format(str(seconds)),
+                                  shell=True)
+        except subprocess.CalledProcessError:
+            sys.exit(127)
+    else:
+        sys.exit("Error processing arguments!")
+if 'current' in sys.argv:
+    try:
+        subprocess.check_call("mpc current", shell=True)
+    except subprocess.CalledProcessError as err:
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print(err)
+        sys.exit(127)
+if 'next' in sys.argv:
+    try:
+        subprocess.check_call("mpc status", shell=True)
+    except subprocess.CalledProcessError:
+        sys.exit(127)
+    get_icestats()
+    command = "mpc next"
+    if icestats['icestats']['source']['listeners'] > 0:
+        print('Listener count is', icestats['icestats']['source']['listeners'])
+        prompt(command)
+        subprocess.check_call("mpc status", shell=True)
+    elif icestats['icestats']['source']['listeners'] == 0:
+        subprocess.check_call(command, shell=True)
+    else:
+        sys.exit("Error processing icestats!")
+if 'pause' in sys.argv:
+    try:
+        status = subprocess.check_output("mpc status", shell=True)
+    except subprocess.CalledProcessError as err:
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print(err)
+        sys.exit(127)
+    status = status.decode("utf-8", "strict")
+    if len(status.splitlines()) == 1:
+        sys.exit("Nothing to pause!")
+    elif status.splitlines()[1].startswith('[playing]'):
+        subprocess.check_call("mpc pause", shell=True)
+    elif status.splitlines()[1].startswith('[paused]'):
+        print('Already paused.')
+    else:
+        sys.exit("Error processing status!")
+if 'play' in sys.argv:
+    try:
+        subprocess.check_call("mpc play", shell=True)
+    except subprocess.CalledProcessError as err:
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print(err)
+        sys.exit(127)
+if 'prev' in sys.argv:
+    try:
+        subprocess.check_call("mpc status", shell=True)
+        get_icestats()
+    except subprocess.CalledProcessError as err:
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print(err)
+        sys.exit(127)
+    command = "mpc prev"
+    if icestats['icestats']['source']['listeners'] > 0:
+        print('Listener count is', icestats['icestats']['source']['listeners'])
+        prompt(command)
+        subprocess.check_call("mpc status", shell=True)
+    elif icestats['icestats']['source']['listeners'] == 0:
+        subprocess.check_call(command, shell=True)
+    else:
+        sys.exit("Error processing icestats!")
+if 'purge' in sys.argv:
+    try:
+        status = subprocess.check_output("mpc status", shell=True)
+        status = status.decode("utf-8", "strict")
+        get_icestats()
+    except subprocess.CalledProcessError as err:
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print(err)
+        sys.exit(127)
+    command = "mpc stop ; mpc clear ; mpc ls | mpc add ; mpc play"
+    if len(mpc.splitlines()) == 1:
+        print('Already stopped.')
+        mpc = subprocess.call(command, shell=True)
+        exit(mpc)
+    elif icestats['icestats']['source']['listeners'] > 0:
+        print('Listener count is', icestats['icestats']['source']['listeners'])
+        prompt(command)
+    elif icestats['icestats']['source']['listeners'] == 0:
+        mpc = subprocess.call(command, shell=True)
+    else:
+        sys.exit("Error processing icestats!")
+if 'spell' in sys.argv:
+    try:
+        subprocess.check_call("mpc current", shell=True)
+    except subprocess.CalledProcessError as err:
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print(err)
+        sys.exit(127)
+if 'stats' in sys.argv:
+    require_mpc()
+    subprocess.check_call("mpc stats", shell=True)
+if 'status' in sys.argv:
+    require_mpc()
+    subprocess.check_call("mpc", shell=True)
+if 'stop' in sys.argv:
+    try:
+        mpc = subprocess.check_output("mpc", shell=True)
+        mpc = mpc.decode("utf-8", "strict")
+    except subprocess.CalledProcessError:
+        sys.exit(127)
+    get_icestats()
+    if len(mpc.splitlines()) == 1:
+        print("Already stopped.")
+    elif icestats['icestats']['source']['listeners'] > 0:
+        print('Listener count is', icestats['icestats']['source']['listeners'])
+        prompt("mpc stop")
+    else:
+        mpc = subprocess.call("mpc stop", shell=True)
+        exit(mpc)
+if 'timestamp' in sys.argv:
+    require_mpc()
+    mpc = subprocess.check_output("mpc stats", shell=True)
+    mpc = mpc.decode("utf-8", "strict")
+    if 'DB Updated' in mpc.splitlines()[6]:
+        print(' '.join(mpc.splitlines()[6].replace("   ", " ").split(' ')[2:]))
+    else:
+        sys.exit("Error processing db_updated!")
+if 'update' in sys.argv:
+    require_mpc()
+    mpc = subprocess.check_output("mpc stats", shell=True)
+    mpc = mpc.decode("utf-8", "strict")
+    if 'Artists' in mpc.splitlines()[0]:
+        old_artist_count = mpc.splitlines()[0].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing old_artist_count!")
+    if 'Albums' in mpc.splitlines()[1]:
+        old_album_count = mpc.splitlines()[1].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing old_album_count!")
+    if 'Songs' in mpc.splitlines()[2]:
+        old_song_count = mpc.splitlines()[2].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing old_song_count!")
+    if 'DB Updated' in mpc.splitlines()[6]:
+        old_timestamp = mpc.splitlines()[6].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing old_timestamp!")
+    subprocess.check_call("mpc update --wait --quiet", shell=True)
+    mpc = subprocess.check_output("mpc stats", shell=True)
+    mpc = mpc.decode("utf-8", "strict")
+    if 'Artists' in mpc.splitlines()[0]:
+        new_artist_count = mpc.splitlines()[0].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing new_artist_count!")
+    if 'Albums' in mpc.splitlines()[1]:
+        new_album_count = mpc.splitlines()[1].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing new_album_count!")
+    if 'Songs' in mpc.splitlines()[2]:
+        new_song_count = mpc.splitlines()[2].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing new_song_count!")
+    if 'DB Updated' in mpc.splitlines()[6]:
+        new_timestamp = mpc.splitlines()[6].replace(" ", "").split(':')[1]
+    else:
+        sys.exit("Error processing new_timestamp!")
+    if new_timestamp != old_timestamp:
+        print("Artists: {} -> {}".format(old_artist_count, new_artist_count))
+        print("Albums: {} -> {}".format(old_album_count, new_album_count))
+        print("Songs: {} -> {}".format(old_song_count, new_song_count))
+    else:
+        print('Already up-to-date.')
