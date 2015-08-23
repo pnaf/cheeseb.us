@@ -229,7 +229,7 @@ if 'purge' in sys.argv:
         if '-d' in sys.argv or '--debug' in sys.argv:
             print(err)
         sys.exit(127)
-    command = "mpc stop ; mpc clear ; mpc ls | mpc add ; mpc play"
+    command = "mpc ; mpc -q stop ; mpc -q clear ; mpc ls | mpc add ; mpc play"
     if len(status.splitlines()) == 1:
         print('Already stopped.')
         mpc = subprocess.call(command, shell=True)
