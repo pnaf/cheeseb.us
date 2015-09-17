@@ -12,12 +12,12 @@
         <h6><audio id="radio" preload="none" src="https://cheeseb.us:8443/radio.ogg">try using <a href="https://www.mozilla.org/firefox/">firefox</a> or <a href="https://www.google.com/chrome/">chrome</a> to listen from within your web browser!</audio></h6>
         <h6>playing:
         <?php
-        echo shell_exec('./cast spell');
+        echo shell_exec('mpc current');
         ?>
         </h6>
         <h6><a href="about/">about</a> &bull;
         <?php
-        echo shell_exec('./cast timestamp | tr [:upper:] [:lower:]');
+        echo shell_exec('mpc stats | grep DB\ Updated | cut -d \  -f 5- | tr [:upper:] [:lower:]');
         ?>
         </h6>
     </div>
