@@ -9,7 +9,7 @@
         <h2>cheeseb.us radio</h2>
         <h6><input type="button" id="play" value="&nbsp;         play         &nbsp;" onclick="document.getElementById('radio').play();top.document.title='&#x25b6; cheeseb.us radio';document.getElementById('play').value='&nbsp;         stop         &nbsp;';document.getElementById('play').onclick=function(){document.getElementById('radio').pause();window.location.href=window.location.href;};" />&nbsp;</h6>
         <form method="get" action="https://cheeseb.us/radio.xspf"><h6><input id="button" type="submit" value="listen in a media player" />&nbsp;</h6></form>
-        <h6><audio id="radio" preload="none" src="http://cheeseb.us:8443/radio.ogg">try using <a href="https://www.mozilla.org/firefox/">firefox</a> or <a href="https://www.google.com/chrome/">chrome</a> to listen from within your web browser!</audio></h6>
+        <h6><audio id="radio" preload="none" src="http://cheeseb.us:8000/radio.ogg">try using <a href="https://www.mozilla.org/firefox/">firefox</a> or <a href="https://www.google.com/chrome/">chrome</a> to listen from within your web browser!</audio></h6>
         <h6>playing:
         <?php
         echo shell_exec('mpc current');
