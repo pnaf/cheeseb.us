@@ -320,5 +320,14 @@ if 'update' in sys.argv:
         print("Artists: {} -> {}".format(old_artist_count, new_artist_count))
         print("Albums: {} -> {}".format(old_album_count, new_album_count))
         print("Songs: {} -> {}".format(old_song_count, new_song_count))
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print("DB timestamp before update: {}".format(old_timestamp))
+            print("DB timestamp after update: {}".format(new_timestamp))
     else:
         print('Already up-to-date.')
+        if '-d' in sys.argv or '--debug' in sys.argv:
+            print("Artists: {} -> {}".format(old_artist_count, new_artist_count))
+            print("Albums: {} -> {}".format(old_album_count, new_album_count))
+            print("Songs: {} -> {}".format(old_song_count, new_song_count))
+            print("DB timestamp before update: {}".format(old_timestamp))
+            print("DB timestamp after update: {}".format(new_timestamp))
