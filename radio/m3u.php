@@ -17,7 +17,7 @@
         </h6>
         <h6><a href="about/">about</a> &bull;
         <?php
-        echo shell_exec('mpc stats | grep DB\ Updated | cut -d \  -f 5- | tr [:upper:] [:lower:]');
+        echo shell_exec('mpc stats | grep DB\ Updated | cut -d \  -f 6-7,9 | tr [:upper:] [:lower:]');
         ?>
         </h6>
     </div>
